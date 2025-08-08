@@ -245,21 +245,6 @@ uv run pytest tests/test_dashboard.py -v
 curl http://127.0.0.1:8000/api/drivers
 ```
 
-## Demo
-
-```bash
-# Run the automated demo script
-uv run python run_demo.py
-```
-
-The demo script will:
-- Check prerequisites and dependencies
-- Initialize the database
-- Run tests to verify functionality
-- Start the FastAPI server
-- Open the dashboard in your browser
-- Provide step-by-step instructions
-
 ## Data Format
 
 The system uses the GeoLife GPS trajectory dataset:
@@ -267,28 +252,3 @@ The system uses the GeoLife GPS trajectory dataset:
 - **Tracks CSV:** Trip metadata (id, id_android, speed, time, distance, rating)
 - **Trackpoints CSV:** GPS points (id, latitude, longitude, track_id, time)
 
-## Recent Fixes & Improvements
-
-### Performance & Stability
-- ✅ Fixed async/await issues in detection pipeline
-- ✅ Resolved JSON serialization errors for datetime objects
-- ✅ Improved WebSocket connection stability
-- ✅ Added comprehensive error handling
-
-### UI/UX Enhancements
-- ✅ Driver selection with data isolation
-- ✅ Real-time speed calculation from GPS coordinates
-- ✅ State persistence across page refreshes
-- ✅ Replaced console logging with "About This Project" section
-- ✅ Clean, professional dashboard interface
-
-### Data Processing
-- ✅ Speed calculation from GPS coordinates using Haversine formula
-- ✅ Proper event detection with real speed data
-- ✅ Risk score updates in real-time
-- ✅ Database persistence with proper driver ID handling
-
-
-## License
-
-MIT License
