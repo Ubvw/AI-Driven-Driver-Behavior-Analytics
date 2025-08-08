@@ -1,0 +1,791 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Driver Behavior Analytics Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'anthropic-bg': '#fafafa',
+                        'anthropic-card': '#ffffff',
+                        'anthropic-text': '#1a1a1a',
+                        'anthropic-text-secondary': '#666666',
+                        'anthropic-border': '#e5e5e5',
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-anthropic-bg text-anthropic-text font-sans">
+    <div class="min-h-screen">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <!-- Header -->
+            <div class="text-center mb-8">
+                <h1 class="text-4xl font-bold text-anthropic-text mb-2">🚗 AI Driver Behavior Analytics</h1>
+                <p class="text-lg text-anthropic-text-secondary">Real-time monitoring of driver behavior and safety events</p>
+            </div>
+
+            <!-- Controls -->
+            <div class="bg-anthropic-card rounded-xl shadow-sm border border-anthropic-border p-6 mb-6">
+                <div class="flex flex-col sm:flex-row items-center justify-center gap-4">
+                    <div class="flex items-center gap-3">
+                        <span class="text-sm font-medium text-anthropic-text">Driver:</span>
+                        <select id="driverSelect" class="px-3 py-2 border border-anthropic-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" onchange="onDriverChange()">
+                            <option value="">Loading drivers...</option>
+                        </select>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <button id="startBtn" class="px-6 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed">
+                            ▶️ Start Simulation
+                        </button>
+                        <button id="stopBtn" class="px-6 py-2 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                            ⏹️ Stop Simulation
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Status -->
+            <div id="status" class="text-center py-4 px-6 rounded-lg mb-6 border transition-all duration-300 bg-red-100 text-red-800 border-red-300">
+                🔴 WebSocket: Disconnected
+            </div>
+
+            <!-- Stats Grid -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                <div class="bg-anthropic-card rounded-xl shadow-sm border border-anthropic-border p-6 hover:shadow-md transition-shadow duration-200">
+                    <div class="text-center">
+                        <div class="text-3xl font-bold text-anthropic-text mb-2" id="totalEvents">0</div>
+                        <div class="text-sm text-anthropic-text-secondary uppercase tracking-wide mb-2">Total Events</div>
+                        <div class="text-xs text-gray-500" id="totalEventsTrend">No change</div>
+                    </div>
+                </div>
+                <div class="bg-anthropic-card rounded-xl shadow-sm border border-anthropic-border p-6 hover:shadow-md transition-shadow duration-200">
+                    <div class="text-center">
+                        <div class="text-3xl font-bold text-anthropic-text mb-2" id="avgSpeed">0</div>
+                        <div class="text-sm text-anthropic-text-secondary uppercase tracking-wide mb-2">Avg Speed (km/h)</div>
+                        <div class="text-xs text-gray-500" id="avgSpeedTrend">No change</div>
+                    </div>
+                </div>
+                <div class="bg-anthropic-card rounded-xl shadow-sm border border-anthropic-border p-6 hover:shadow-md transition-shadow duration-200">
+                    <div class="text-center">
+                        <div class="text-3xl font-bold text-anthropic-text mb-2" id="maxSpeed">0</div>
+                        <div class="text-sm text-anthropic-text-secondary uppercase tracking-wide mb-2">Max Speed (km/h)</div>
+                        <div class="text-xs text-gray-500" id="maxSpeedTrend">No change</div>
+                    </div>
+                </div>
+                <div class="bg-anthropic-card rounded-xl shadow-sm border border-anthropic-border p-6 hover:shadow-md transition-shadow duration-200">
+                    <div class="text-center">
+                        <div class="text-3xl font-bold text-anthropic-text mb-2" id="activeDrivers">0</div>
+                        <div class="text-sm text-anthropic-text-secondary uppercase tracking-wide mb-2">Active Drivers</div>
+                        <div class="text-xs text-gray-500" id="activeDriversTrend">No change</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Charts -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+                <div class="bg-anthropic-card rounded-xl shadow-sm border border-anthropic-border p-6">
+                    <h3 class="text-lg font-semibold text-anthropic-text mb-4" id="speedChartTitle">📈 Speed Over Time</h3>
+                    <div class="h-80">
+                        <canvas id="speedChart"></canvas>
+                    </div>
+                </div>
+                <div class="bg-anthropic-card rounded-xl shadow-sm border border-anthropic-border p-6">
+                    <h3 class="text-lg font-semibold text-anthropic-text mb-4">📊 Event Distribution</h3>
+                    <div class="h-80">
+                        <canvas id="eventsChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Risk Score -->
+            <div class="bg-anthropic-card rounded-xl shadow-sm border border-anthropic-border p-8 mb-8">
+                <div class="text-center">
+                    <h3 class="text-xl font-semibold text-anthropic-text mb-4">🎯 Driver Risk Score</h3>
+                    <div class="text-6xl font-bold text-anthropic-text mb-4" id="scoreDisplay">--</div>
+                    <div class="text-sm text-anthropic-text-secondary mb-6">Safety Rating (0-100) - Decreases with detected events</div>
+                    
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div class="bg-red-500 text-white px-4 py-3 rounded-lg flex justify-between items-center" id="overspeeding-indicator">
+                            <span class="text-sm font-medium">Overspeeding</span>
+                            <span class="text-lg font-bold" id="overspeeding-count">0</span>
+                        </div>
+                        <div class="bg-orange-500 text-white px-4 py-3 rounded-lg flex justify-between items-center" id="harsh-braking-indicator">
+                            <span class="text-sm font-medium">Harsh Braking</span>
+                            <span class="text-lg font-bold" id="harsh-braking-count">0</span>
+                        </div>
+                        <div class="bg-yellow-500 text-anthropic-text px-4 py-3 rounded-lg flex justify-between items-center" id="sudden-acceleration-indicator">
+                            <span class="text-sm font-medium">Sudden Acceleration</span>
+                            <span class="text-lg font-bold" id="sudden-acceleration-count">0</span>
+                        </div>
+                        <div class="bg-gray-500 text-white px-4 py-3 rounded-lg flex justify-between items-center" id="idling-indicator">
+                            <span class="text-sm font-medium">Idling</span>
+                            <span class="text-lg font-bold" id="idling-count">0</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- About This Project -->
+            <div class="bg-white rounded-lg shadow-sm border border-anthropic-border p-6">
+                <h3 class="text-lg font-semibold text-anthropic-text mb-4">ℹ️ About This Project</h3>
+                <div class="space-y-4 text-sm text-gray-700">
+                    <div>
+                        <h4 class="font-semibold text-gray-800 mb-2">🚗 Driver Behavior Analytics</h4>
+                        <p class="mb-3">This system analyzes GPS trajectory data to detect unsafe driving behaviors in real-time. It processes GPS coordinates to calculate speed, acceleration, and identify driving events that may indicate risky behavior.</p>
+                    </div>
+                    
+                    <div>
+                        <h4 class="font-semibold text-gray-800 mb-2">📊 Event Detection</h4>
+                        <ul class="list-disc list-inside space-y-1 ml-2">
+                            <li><strong>Overspeeding:</strong> Speed exceeds 100 km/h threshold</li>
+                            <li><strong>Harsh Braking:</strong> Deceleration rate below -10 km/h per second</li>
+                            <li><strong>Sudden Acceleration:</strong> Acceleration rate above 10 km/h per second</li>
+                            <li><strong>Idling:</strong> Vehicle stationary for more than 10 minutes</li>
+                        </ul>
+                    </div>
+                    
+                    <div>
+                        <h4 class="font-semibold text-gray-800 mb-2">🎯 Risk Score Calculation</h4>
+                        <p class="mb-2">The risk score starts at 100 (perfect) and decreases based on detected events:</p>
+                        <ul class="list-disc list-inside space-y-1 ml-2">
+                            <li>Overspeeding: -2 points per event</li>
+                            <li>Harsh Braking: -3 points per event</li>
+                            <li>Idling: -1 point per event</li>
+                        </ul>
+                        <p class="mt-2 text-xs text-gray-600">Formula: max(0, 100 - (overspeed_count×2 + harsh_brake_count×3 + idle_count×1))</p>
+                    </div>
+                    
+                    <div>
+                        <h4 class="font-semibold text-gray-800 mb-2">🔄 How to Use</h4>
+                        <ol class="list-decimal list-inside space-y-1 ml-2">
+                            <li>Select a driver from the dropdown</li>
+                            <li>Click "Start Simulation" to begin real-time analysis</li>
+                            <li>Watch the speed chart, event detection, and risk score updates</li>
+                            <li>Switch drivers to analyze different driving patterns</li>
+                        </ol>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <style>
+        .event-indicator.active {
+            animation: pulse 1s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.02); }
+            100% { transform: scale(1); }
+        }
+    </style>
+
+    <script>
+        // WebSocket connection
+        let ws = null;
+        let isConnected = false;
+        
+        // Charts
+        let speedChart = null;
+        let eventsChart = null;
+        
+        // Data storage with proper limits
+        let speedData = {};  // Changed to object to store data per driver
+        let eventCounts = {
+            overspeeding: 0,
+            harsh_braking: 0,
+            sudden_acceleration: 0,
+            idling: 0
+        };
+        let currentScore = 0;
+        let drivers = [];
+        let driverData = {};
+        let currentDriver = null;
+        let isSimulationRunning = false;
+
+        // Previous values for trend calculation
+        let prevStats = {
+            totalEvents: 0,
+            avgSpeed: 0,
+            maxSpeed: 0,
+            activeDrivers: 0
+        };
+
+        // Driver colors for chart
+        const driverColors = [
+            '#2563eb', '#dc2626', '#059669', '#d97706', '#7c3aed',
+            '#db2777', '#0891b2', '#65a30d', '#ea580c', '#be185d'
+        ];
+
+        // Initialize charts with better configuration
+        function initCharts() {
+            // Speed chart with multiple datasets
+            const speedCtx = document.getElementById('speedChart').getContext('2d');
+            speedChart = new Chart(speedCtx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: []
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: 'top'
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 80,
+                            title: {
+                                display: true,
+                                text: 'Speed (km/h)',
+                                font: { size: 12, weight: '600' },
+                                color: '#666'
+                            },
+                            grid: {
+                                color: 'rgba(0,0,0,0.05)'
+                            },
+                            ticks: {
+                                color: '#666',
+                                font: { size: 11 }
+                            }
+                        },
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Time',
+                                font: { size: 12, weight: '600' },
+                                color: '#666'
+                            },
+                            grid: {
+                                color: 'rgba(0,0,0,0.05)'
+                            },
+                            ticks: {
+                                color: '#666',
+                                font: { size: 11 },
+                                maxTicksLimit: 8
+                            }
+                        }
+                    },
+                    animation: {
+                        duration: 300
+                    },
+                    interaction: {
+                        intersect: false,
+                        mode: 'index'
+                    }
+                }
+            });
+
+            // Events chart with better colors
+            const eventsCtx = document.getElementById('eventsChart').getContext('2d');
+            eventsChart = new Chart(eventsCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Overspeeding', 'Harsh Braking', 'Sudden Acceleration', 'Idling'],
+                    datasets: [{
+                        data: [0, 0, 0, 0],
+                        backgroundColor: [
+                            '#ef4444',
+                            '#f97316',
+                            '#eab308',
+                            '#6b7280'
+                        ],
+                        borderWidth: 0,
+                        hoverOffset: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                color: '#666',
+                                font: { size: 11 },
+                                usePointStyle: true,
+                                padding: 15
+                            }
+                        }
+                    },
+                    animation: {
+                        duration: 300
+                    }
+                }
+            });
+        }
+
+        // Simple logging (for debugging if needed)
+        function log(message) {
+            // Console logging removed - replaced with About section
+            console.log(`[${new Date().toLocaleTimeString()}] ${message}`);
+        }
+
+        // Save state to localStorage
+        function saveState() {
+            const state = {
+                selectedDriver: currentDriver,
+                isSimulationRunning: isSimulationRunning
+            };
+            localStorage.setItem('driverAnalyticsState', JSON.stringify(state));
+        }
+
+        // Load state from localStorage
+        function loadState() {
+            try {
+                const savedState = localStorage.getItem('driverAnalyticsState');
+                if (savedState) {
+                    const state = JSON.parse(savedState);
+                    currentDriver = state.selectedDriver || null;
+                    isSimulationRunning = state.isSimulationRunning || false;
+                    
+                    // Update UI based on saved state
+                    if (currentDriver) {
+                        const driverSelect = document.getElementById('driverSelect');
+                        if (driverSelect) {
+                            driverSelect.value = currentDriver;
+                            document.querySelector('.text-sm.font-medium.text-anthropic-text').textContent = `Driver: ${currentDriver}`;
+                            document.getElementById('speedChartTitle').textContent = `📈 Speed Over Time - ${currentDriver}`;
+                        }
+                    }
+                    
+                    if (isSimulationRunning) {
+                        // Disable start button and enable stop button
+                        document.getElementById('startBtn').disabled = true;
+                        document.getElementById('stopBtn').disabled = false;
+                        log('🔄 Restored simulation state - simulation was running');
+                    }
+                }
+            } catch (error) {
+                log(`Error loading saved state: ${error.message}`);
+            }
+        }
+
+        // Load drivers
+        async function loadDrivers() {
+            try {
+                const response = await fetch('/api/drivers');
+                drivers = await response.json();
+                
+                // Populate driver dropdown
+                const driverSelect = document.getElementById('driverSelect');
+                driverSelect.innerHTML = '<option value="">Select a driver...</option>';
+                
+                drivers.forEach(driver => {
+                    const option = document.createElement('option');
+                    option.value = driver.external_id;
+                    option.textContent = `${driver.name} (${driver.external_id})`;
+                    driverSelect.appendChild(option);
+                });
+                
+                // Restore selected driver if exists
+                if (currentDriver) {
+                    driverSelect.value = currentDriver;
+                    document.querySelector('.text-sm.font-medium.text-anthropic-text').textContent = `Driver: ${currentDriver}`;
+                    document.getElementById('speedChartTitle').textContent = `📈 Speed Over Time - ${currentDriver}`;
+                }
+                
+                log(`Loaded ${drivers.length} drivers`);
+            } catch (error) {
+                log(`Error loading drivers: ${error.message}`);
+            }
+        }
+
+        // Update statistics with trends
+        function updateStats() {
+            const totalEvents = Object.values(eventCounts).reduce((a, b) => a + b, 0);
+            
+            // Calculate average speed across all drivers
+            let allSpeeds = [];
+            Object.values(speedData).forEach(driverData => {
+                allSpeeds = allSpeeds.concat(driverData.map(d => d.speed));
+            });
+            
+            const avgSpeed = allSpeeds.length > 0 ? 
+                Math.round(allSpeeds.reduce((a, b) => a + b, 0) / allSpeeds.length) : 0;
+            const maxSpeed = allSpeeds.length > 0 ? Math.round(Math.max(...allSpeeds)) : 0;
+            const activeDrivers = Object.keys(speedData).length;
+
+            // Update values
+            document.getElementById('totalEvents').textContent = totalEvents;
+            document.getElementById('avgSpeed').textContent = avgSpeed;
+            document.getElementById('maxSpeed').textContent = maxSpeed;
+            document.getElementById('activeDrivers').textContent = activeDrivers;
+
+            // Update trends
+            updateTrend('totalEvents', totalEvents, prevStats.totalEvents);
+            updateTrend('avgSpeed', avgSpeed, prevStats.avgSpeed);
+            updateTrend('maxSpeed', maxSpeed, prevStats.maxSpeed);
+            updateTrend('activeDrivers', activeDrivers, prevStats.activeDrivers);
+
+            // Store current values
+            prevStats = { totalEvents, avgSpeed, maxSpeed, activeDrivers };
+        }
+
+        function updateTrend(elementId, current, previous) {
+            const element = document.getElementById(elementId + 'Trend');
+            if (current > previous) {
+                element.textContent = '↗️ Increasing';
+                element.className = 'text-xs text-red-600';
+            } else if (current < previous) {
+                element.textContent = '↘️ Decreasing';
+                element.className = 'text-xs text-green-600';
+            } else {
+                element.textContent = '→ Stable';
+                element.className = 'text-xs text-gray-500';
+            }
+        }
+
+        // Connect WebSocket
+        function connectWebSocket() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${protocol}//${window.location.host}/ws/data`;
+            
+            ws = new WebSocket(wsUrl);
+            
+            ws.onopen = function() {
+                isConnected = true;
+                document.getElementById('status').className = 'text-center py-4 px-6 rounded-lg mb-6 border transition-all duration-300 bg-green-100 text-green-800 border-green-300';
+                document.getElementById('status').textContent = '🟢 WebSocket: Connected';
+            };
+            
+            ws.onmessage = function(event) {
+                try {
+                    const data = JSON.parse(event.data);
+                    if (data.type === 'telemetry') {
+                        handleTelemetry(data.payload);
+                    } else if (data.type === 'event') {
+                        handleEvent(data.payload);
+                    } else if (data.type === 'score') {
+                        handleScore(data.payload);
+                    }
+                } catch (error) {
+                    console.error(`Error parsing message: ${error.message}`);
+                }
+            };
+            
+            ws.onclose = function() {
+                isConnected = false;
+                document.getElementById('status').className = 'text-center py-4 px-6 rounded-lg mb-6 border transition-all duration-300 bg-red-100 text-red-800 border-red-300';
+                document.getElementById('status').textContent = '🔴 WebSocket: Disconnected';
+            };
+            
+            ws.onerror = function(error) {
+                console.error(`WebSocket error: ${error}`);
+            };
+        }
+
+        // Handle telemetry data with multiple drivers
+        function handleTelemetry(payload) {
+            const driverId = payload.driver_id;
+            const timestamp = new Date(payload.timestamp);
+            const timeLabel = timestamp.toLocaleTimeString();
+            
+            // Initialize driver data if not exists
+            if (!speedData[driverId]) {
+                speedData[driverId] = [];
+            }
+            
+            // Add to speed chart with proper data management
+            speedData[driverId].push({
+                time: timeLabel,
+                speed: payload.speed_kph
+            });
+            
+            // Keep only last 20 points per driver for better performance
+            if (speedData[driverId].length > 20) {
+                speedData[driverId].shift();
+            }
+            
+            // Update chart - show only current driver if one is selected
+            updateSpeedChart();
+            
+            updateStats();
+        }
+
+        function updateSpeedChart() {
+            // Clear existing datasets
+            speedChart.data.datasets = [];
+            speedChart.data.labels = [];
+            
+            // If a specific driver is selected, show only that driver's data
+            if (currentDriver) {
+                const driverId = Object.keys(speedData).find(id => 
+                    speedData[id].length > 0
+                );
+                
+                if (driverId && speedData[driverId]) {
+                    const driverData = speedData[driverId];
+                    const timestamps = driverData.map(point => point.time);
+                    const speeds = driverData.map(point => point.speed);
+                    
+                    speedChart.data.labels = timestamps;
+                    speedChart.data.datasets.push({
+                        label: `Driver ${driverId}`,
+                        data: speeds,
+                        borderColor: '#2563eb',
+                        backgroundColor: '#2563eb20',
+                        tension: 0.4,
+                        borderWidth: 2,
+                        pointRadius: 3,
+                        pointHoverRadius: 5,
+                        fill: false
+                    });
+                }
+            } else {
+                // Show all drivers (original behavior)
+                let allTimestamps = new Set();
+                Object.values(speedData).forEach(driverData => {
+                    driverData.forEach(point => allTimestamps.add(point.time));
+                });
+                
+                // Sort timestamps
+                const sortedTimestamps = Array.from(allTimestamps).sort();
+                speedChart.data.labels = sortedTimestamps;
+                
+                // Add dataset for each driver
+                Object.keys(speedData).forEach((driverId, index) => {
+                    const driverData = speedData[driverId];
+                    const color = driverColors[index % driverColors.length];
+                    
+                    // Map data to timestamps
+                    const dataPoints = sortedTimestamps.map(time => {
+                        const point = driverData.find(p => p.time === time);
+                        return point ? point.speed : null;
+                    });
+                    
+                    speedChart.data.datasets.push({
+                        label: `Driver ${driverId}`,
+                        data: dataPoints,
+                        borderColor: color,
+                        backgroundColor: color + '20',
+                        tension: 0.4,
+                        borderWidth: 2,
+                        pointRadius: 3,
+                        pointHoverRadius: 5,
+                        fill: false
+                    });
+                });
+            }
+            
+            speedChart.update('none');
+        }
+
+        // Handle event data
+        function handleEvent(payload) {
+            const eventType = payload.event_type;
+            if (eventCounts.hasOwnProperty(eventType)) {
+                eventCounts[eventType]++;
+                
+                // Update events chart
+                eventsChart.data.datasets[0].data = [
+                    eventCounts.overspeeding,
+                    eventCounts.harsh_braking,
+                    eventCounts.sudden_acceleration,
+                    eventCounts.idling
+                ];
+                eventsChart.update('none');
+                
+                // Update event indicators
+                document.getElementById(`${eventType}-count`).textContent = eventCounts[eventType];
+                
+                // Flash the indicator
+                const indicator = document.getElementById(`${eventType.replace('_', '-')}-indicator`);
+                indicator.classList.add('active');
+                setTimeout(() => indicator.classList.remove('active'), 1000);
+                
+                // Event detected - visual feedback only
+            }
+        }
+
+        // Handle score data
+        function handleScore(payload) {
+            currentScore = payload.risk_score;
+            document.getElementById('scoreDisplay').textContent = currentScore;
+            // Update event counts from score if available
+            if (payload.overspeed_count !== undefined) {
+                eventCounts.overspeeding = payload.overspeed_count;
+                document.getElementById('overspeeding-count').textContent = payload.overspeed_count;
+            }
+            if (payload.harsh_brake_count !== undefined) {
+                eventCounts.harsh_braking = payload.harsh_brake_count;
+                document.getElementById('harsh-braking-count').textContent = payload.harsh_brake_count;
+            }
+            if (payload.sudden_accel_count !== undefined) {
+                eventCounts.sudden_acceleration = payload.sudden_accel_count;
+                document.getElementById('sudden-acceleration-count').textContent = payload.sudden_accel_count;
+            }
+            if (payload.idle_count !== undefined) {
+                eventCounts.idling = payload.idle_count;
+                document.getElementById('idling-count').textContent = payload.idle_count;
+            }
+            // Score updated - visual feedback only
+        }
+
+        // API calls
+        async function startSimulation() {
+            try {
+                const driverSelect = document.getElementById('driverSelect');
+                const selectedDriver = driverSelect.value;
+                
+                if (!selectedDriver) {
+                    alert('Please select a driver first');
+                    return;
+                }
+                
+                const response = await fetch('/api/start_simulation', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        driver_id: selectedDriver
+                    })
+                });
+                const data = await response.json();
+                currentDriver = selectedDriver;
+                isSimulationRunning = true;
+                // Simulation started successfully
+                
+                // Update UI to show current driver
+                document.querySelector('.text-sm.font-medium.text-anthropic-text').textContent = `Driver: ${selectedDriver}`;
+                document.getElementById('speedChartTitle').textContent = `📈 Speed Over Time - ${selectedDriver}`;
+                
+                // Save state
+                saveState();
+            } catch (error) {
+                alert(`Error starting simulation: ${error.message}`);
+            }
+        }
+
+        async function stopSimulation() {
+            try {
+                const response = await fetch('/api/stop_simulation', {
+                    method: 'POST'
+                });
+                const data = await response.json();
+                // Simulation stopped successfully
+                
+                // Reset current driver and simulation state
+                currentDriver = null;
+                isSimulationRunning = false;
+                document.querySelector('.text-sm.font-medium.text-anthropic-text').textContent = 'Driver:';
+                document.getElementById('speedChartTitle').textContent = '📈 Speed Over Time';
+                
+                // Save state
+                saveState();
+            } catch (error) {
+                alert(`Error stopping simulation: ${error.message}`);
+            }
+        }
+
+        // Check simulation status
+        async function checkSimulationStatus() {
+            try {
+                const response = await fetch('/api/simulation_status');
+                const data = await response.json();
+                isSimulationRunning = data.is_running;
+                
+                if (isSimulationRunning) {
+                    document.getElementById('startBtn').disabled = true;
+                    document.getElementById('stopBtn').disabled = false;
+                    // Simulation is currently running
+                } else {
+                    document.getElementById('startBtn').disabled = false;
+                    document.getElementById('stopBtn').disabled = true;
+                }
+                
+                saveState();
+            } catch (error) {
+                log(`Error checking simulation status: ${error.message}`);
+            }
+        }
+
+        // Handle driver selection change
+        function onDriverChange() {
+            const driverSelect = document.getElementById('driverSelect');
+            const selectedDriver = driverSelect.value;
+            
+            if (selectedDriver && selectedDriver !== currentDriver) {
+                // Reset all data when changing drivers
+                resetAllData();
+                currentDriver = selectedDriver;
+                
+                // Update UI to show current driver
+                document.querySelector('.text-sm.font-medium.text-anthropic-text').textContent = `Driver: ${selectedDriver}`;
+                document.getElementById('speedChartTitle').textContent = `📈 Speed Over Time - ${selectedDriver}`;
+                
+                // Switched to new driver - data reset
+                saveState();
+            }
+        }
+
+        // Reset all data when changing drivers
+        function resetAllData() {
+            // Reset speed data
+            speedData = {};
+            
+            // Reset event counts
+            eventCounts = {
+                overspeeding: 0,
+                harsh_braking: 0,
+                sudden_acceleration: 0,
+                idling: 0
+            };
+            
+            // Reset risk score
+            currentScore = 100;
+            
+            // Update UI
+            updateSpeedChart();
+            updateEventsChart();
+            updateStats();
+            
+            // Reset score display
+            document.getElementById('scoreDisplay').textContent = currentScore;
+            
+            // Reset event count displays
+            document.getElementById('overspeeding-count').textContent = '0';
+            document.getElementById('harsh-braking-count').textContent = '0';
+            document.getElementById('sudden-acceleration-count').textContent = '0';
+            document.getElementById('idling-count').textContent = '0';
+        }
+
+        // Event listeners
+        document.getElementById('startBtn').addEventListener('click', function() {
+            this.disabled = true;
+            document.getElementById('stopBtn').disabled = false;
+            startSimulation();
+        });
+
+        document.getElementById('stopBtn').addEventListener('click', function() {
+            this.disabled = true;
+            document.getElementById('startBtn').disabled = false;
+            stopSimulation();
+        });
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            log('🚀 Dashboard loaded');
+            initCharts();
+            loadDrivers();
+            connectWebSocket();
+            loadState(); // Load state on page load
+            checkSimulationStatus(); // Check if simulation is running
+        });
+    </script>
+</body>
+</html>
