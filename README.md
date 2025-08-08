@@ -4,7 +4,7 @@ A real-time driver behavior monitoring system built with FastAPI, PostgreSQL, an
 
 ## Project Overview
 
-This MVP demonstrates real-time streaming of GPS telemetry data, performs rule-based event detection (overspeeding, harsh braking, sudden acceleration, idling), computes driver risk scores, and visualizes the data on a live dashboard.
+This project demonstrates real-time streaming of GPS telemetry data, performs rule-based event detection (overspeeding, harsh braking, sudden acceleration, idling), computes driver risk scores, and visualizes the data on a live dashboard.
 
 ## Features
 
